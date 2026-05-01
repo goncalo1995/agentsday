@@ -62,12 +62,10 @@ export async function POST(req: NextRequest) {
       },
       pagination: {
         start: 1,
-        count: body.limit || 5,
+        count: body.limit || 12,
       },
       currency: body.currency || 'EUR',
     }
-
-    console.log('[v0] Viator products search request:', JSON.stringify(viatorRequest, null, 2))
 
     const response = await fetch(`${baseUrl}/products/search`, {
       method: 'POST',
@@ -82,7 +80,6 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[v0] Viator API error:', response.status, errorText)
       
       if (response.status === 401 || response.status === 403) {
         return Response.json(
@@ -110,7 +107,7 @@ export async function POST(req: NextRequest) {
       requestSent: viatorRequest,
     })
   } catch (error) {
-    console.error('[v0] Viator products search error:', error)
+    console.error('Viator products search error:', error)
     return Response.json(
       { error: 'Failed to search Viator products', details: String(error) },
       { status: 500 }

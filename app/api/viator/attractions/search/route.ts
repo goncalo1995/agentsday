@@ -21,10 +21,8 @@ export async function POST(req: NextRequest) {
     }
 
     const viatorRequest = {
-      destId: body.destinationId,
+      destinationId: body.destinationId,
     }
-
-    console.log('[v0] Viator attractions search request:', JSON.stringify(viatorRequest, null, 2))
 
     const response = await fetch(`${baseUrl}/attractions/search`, {
       method: 'POST',
@@ -39,7 +37,6 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[v0] Viator attractions API error:', response.status, errorText)
       
       if (response.status === 401 || response.status === 403) {
         return Response.json(
@@ -65,7 +62,7 @@ export async function POST(req: NextRequest) {
       totalCount: data.totalCount || 0,
     })
   } catch (error) {
-    console.error('[v0] Viator attractions search error:', error)
+    console.error('Viator attractions search error:', error)
     return Response.json(
       { error: 'Failed to search Viator attractions', details: String(error) },
       { status: 500 }

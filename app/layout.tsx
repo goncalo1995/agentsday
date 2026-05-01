@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const inter = Inter({ 
@@ -14,9 +13,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Verifiable Intent Gift Agent',
-  description: 'Find last-minute gifts with a verifiable AI shopping agent. Voice-powered, secure, and instant.',
-  generator: 'v0.app',
+  title: 'Creator Travel Links',
+  description: 'Discover Viator experiences and generate creator-ready referral links.',
+  generator: 'Codex',
   icons: {
     icon: [
       {
@@ -37,7 +36,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1a1a2e',
+  themeColor: '#18211f',
   width: 'device-width',
   initialScale: 1,
 }
@@ -51,7 +50,6 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans antialiased bg-background min-h-screen">
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )
