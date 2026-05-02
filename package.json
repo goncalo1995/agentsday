@@ -6,11 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "instant:push:schema": "instant-cli push schema --yes",
+    "instant:push:perms": "instant-cli push perms --yes"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.55",
     "@ai-sdk/react": "^3.0.174",
+    "@instantdb/admin": "^1.0.22",
+    "@instantdb/react": "^1.0.22",
     "ai": "^6.0.172",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",

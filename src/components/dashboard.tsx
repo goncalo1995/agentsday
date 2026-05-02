@@ -3,9 +3,11 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { Search, Sparkles, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
-import type { SearchIntent, SearchStep, ViatorProduct, ViatorAttraction, SavedLink, ViatorSearchResponse } from "@/lib/types";
+import { id } from "@instantdb/react";
+import type { SearchIntent, SearchStep, ViatorProduct, ViatorAttraction, ViatorSearchResponse } from "@/lib/types";
 import { DEMO_PRODUCTS, DEMO_ATTRACTIONS } from "@/lib/demo-data";
-import { generateReferralUrl, generateShortLink, simulateClicks, simulateCommission, bestImageUrl } from "@/lib/utils";
+import { db } from "@/lib/instant";
+import { affiliateUrlFor, makeShortCode, productSnapshot } from "@/lib/affiliate";
 import { ProductCard } from "./product-card";
 import { ReferralModal } from "./referral-modal";
 import { SearchIntentPanel } from "./search-intent-panel";
@@ -19,16 +21,6 @@ const EXAMPLE_PROMPTS = [
   "Food tours in Tokyo for a travel vlog",
   "Wine tasting in Paris for couples content",
 ];
-
-function getSavedLinks(): SavedLink[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem("creator_saved_links") || "[]"); }
-  catch { return []; }
-}
-
-function persistSavedLinks(links: SavedLink[]) {
-  localStorage.setItem("creator_saved_links", JSON.stringify(links));
-}
 
 /** Group products by their first known tag for carousel sections */
 function groupByCategory(products: ViatorProduct[], tagNames: Record<string, string>): { label: string; items: ViatorProduct[] }[] {
@@ -62,6 +54,7 @@ function groupByCategory(products: ViatorProduct[], tagNames: Record<string, str
 }
 
 export function Dashboard() {
+  const auth = db.useAuth();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [intent, setIntent] = useState<SearchIntent | null>(null);
@@ -70,9 +63,32 @@ export function Dashboard() {
   const [steps, setSteps] = useState<SearchStep[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<ViatorProduct | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(getSavedLinks().map((l) => l.productCode)));
   const [showDemo, setShowDemo] = useState(false);
   const [tagNames, setTagNames] = useState<Record<string, string>>({});
+
+  const userId = auth.user?.id;
+  const savedDeals = db.useQuery(
+    userId
+      ? {
+          saved_deals: {
+            $: {
+              where: { userId },
+            },
+          },
+        }
+      : null,
+  );
+  const affiliateLinks = db.useQuery(
+    userId
+      ? {
+          affiliate_links: {
+            $: {
+              where: { userId },
+            },
+          },
+        }
+      : null,
+  );
 
   // Fetch tag names once on mount
   useEffect(() => {
@@ -83,6 +99,14 @@ export function Dashboard() {
   }, []);
 
   const carouselGroups = useMemo(() => groupByCategory(products, tagNames), [products, tagNames]);
+  const savedIds = useMemo(
+    () => new Set((savedDeals.data?.saved_deals ?? []).map((deal) => deal.viatorProductId)),
+    [savedDeals.data?.saved_deals],
+  );
+  const linkedIds = useMemo(
+    () => new Set((affiliateLinks.data?.affiliate_links ?? []).map((link) => link.viatorProductId)),
+    [affiliateLinks.data?.affiliate_links],
+  );
 
   const handleSearch = useCallback(async (searchQuery?: string) => {
     const q = searchQuery ?? query;
@@ -129,7 +153,7 @@ export function Dashboard() {
       });
       const searchData: ViatorSearchResponse = await searchRes.json();
 
-      if (searchData.error || searchData.products.length === 0) {
+      if (searchData.error || (searchData.products.length === 0 && searchData.attractions.length === 0)) {
         setSteps([
           { label: "Destination detected", status: "done", detail: agentData.destination },
           { label: "Keywords extracted", status: "done", detail: agentData.keywords.slice(0, 3).join(", ") },
@@ -142,6 +166,7 @@ export function Dashboard() {
       } else {
         // Attach provider to each product
         const enriched = searchData.products.map((p) => ({ ...p, provider: "viator" }));
+        console.log("enriched products", enriched);
         setProducts(enriched);
         setAttractions(searchData.attractions);
         setSteps([
@@ -171,42 +196,63 @@ export function Dashboard() {
     );
   }
 
-  function handleSaveFromModal(product: ViatorProduct, referralUrl: string, creatorCode?: string, campaignSource?: string) {
-    const links = getSavedLinks();
-    if (links.some((l) => l.productCode === product.productCode)) return;
-    const price = product.pricing?.summary?.fromPrice ?? 0;
-    const createdAt = new Date().toISOString();
-    const clicks = simulateClicks(createdAt);
-    const newLink: SavedLink = {
-      id: crypto.randomUUID(),
-      productTitle: product.title,
-      productCode: product.productCode,
-      destination: intent?.destination ?? "",
-      referralUrl,
-      productUrl: product.productUrl ?? "",
-      shortLink: generateShortLink(product.productCode),
-      createdAt,
-      clickCount: clicks,
-      estimatedCommission: simulateCommission(price, clicks),
-      price,
-      currency: product.pricing?.currency ?? "USD",
-      rating: product.reviews?.combinedAverageRating ?? 0,
-      reviewCount: product.reviews?.totalReviews ?? 0,
-      imageUrl: bestImageUrl(product.images),
-      viatorTags: product.tags ?? [],
-      customTags: [],
-      campaignSource: campaignSource ?? "instagram",
-      creatorCode: creatorCode ?? "creator_demo",
-      status: "draft",
-      provider: product.provider ?? "viator",
-    };
-    persistSavedLinks([newLink, ...links]);
-    setSavedIds((prev) => new Set(prev).add(product.productCode));
+  async function generateAffiliateLink(product: ViatorProduct, creatorCode: string, campaignSource: string) {
+    if (!userId) return;
+    const existing = affiliateLinks.data?.affiliate_links.find((link) => link.viatorProductId === product.productCode);
+    if (existing) return;
+
+    const linkId = id();
+    const shortCode = makeShortCode(product.productCode);
+    const snapshot = productSnapshot(product);
+    await db.transact(
+      db.tx.affiliate_links[linkId].update({
+        linkId,
+        userId,
+        viatorProductId: product.productCode,
+        shortCode,
+        affiliateUrl: affiliateUrlFor(product, creatorCode, campaignSource),
+        destinationUrl: product.productUrl ?? "",
+        productTitle: snapshot.productTitle,
+        productImageUrl: snapshot.productImageUrl,
+        productPrice: snapshot.price,
+        productCurrency: snapshot.currency,
+        productRating: snapshot.rating,
+        reviewCount: snapshot.reviewCount,
+        campaignSource,
+        creatorCode,
+        createdAt: new Date().toISOString(),
+      }),
+    );
   }
 
-  function handleQuickSave(product: ViatorProduct) {
-    const referralUrl = generateReferralUrl(product.productUrl ?? "", "creator_demo", "instagram");
-    handleSaveFromModal(product, referralUrl, "creator_demo", "instagram");
+  async function handleSaveFromModal(product: ViatorProduct, creatorCode: string, campaignSource: string) {
+    await Promise.all([
+      handleQuickSave(product),
+      generateAffiliateLink(product, creatorCode, campaignSource),
+    ]);
+  }
+
+  async function handleQuickSave(product: ViatorProduct) {
+    if (!userId || savedIds.has(product.productCode)) return;
+    const createdAt = new Date().toISOString();
+    const snapshot = productSnapshot(product);
+    await db.transact(
+      db.tx.saved_deals[id()].update({
+        userId,
+        viatorProductId: product.productCode,
+        notes: "",
+        productTitle: snapshot.productTitle,
+        productUrl: snapshot.productUrl,
+        productImageUrl: snapshot.productImageUrl,
+        destination: intent?.destination ?? "",
+        price: snapshot.price,
+        currency: snapshot.currency,
+        rating: snapshot.rating,
+        reviewCount: snapshot.reviewCount,
+        provider: snapshot.provider,
+        createdAt,
+      }),
+    );
   }
 
   return (
@@ -301,6 +347,7 @@ export function Dashboard() {
               onGenerateLink={setModalProduct}
               onSave={handleQuickSave}
               isSaved={savedIds.has(p.productCode)}
+              hasLink={linkedIds.has(p.productCode)}
             />
           ))}
         </Carousel>
@@ -317,7 +364,7 @@ export function Dashboard() {
       <ReferralModal
         product={modalProduct}
         onClose={() => setModalProduct(null)}
-        onSave={handleSaveFromModal}
+        onGenerate={handleSaveFromModal}
       />
     </div>
   );

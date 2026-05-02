@@ -9,13 +9,14 @@ import { generateReferralUrl, bestImageUrl } from "@/lib/utils";
 interface Props {
   product: ViatorProduct | null;
   onClose: () => void;
-  onSave: (product: ViatorProduct, referralUrl: string, creatorCode: string, campaignSource: string) => void;
+  onGenerate: (product: ViatorProduct, creatorCode: string, campaignSource: string) => Promise<void>;
 }
 
-export function ReferralModal({ product, onClose, onSave }: Props) {
+export function ReferralModal({ product, onClose, onGenerate }: Props) {
   const [creatorCode, setCreatorCode] = useState("creator_demo");
   const [source, setSource] = useState("instagram");
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const referralUrl = product?.productUrl
     ? generateReferralUrl(product.productUrl, creatorCode, source)
@@ -31,6 +32,17 @@ export function ReferralModal({ product, onClose, onSave }: Props) {
   async function copyToClipboard() {
     await navigator.clipboard.writeText(referralUrl);
     setCopied(true);
+  }
+
+  async function generate() {
+    if (!product) return;
+    setBusy(true);
+    try {
+      await onGenerate(product, creatorCode, source);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -124,10 +136,11 @@ export function ReferralModal({ product, onClose, onSave }: Props) {
                   {copied ? "Copied!" : "Copy link"}
                 </button>
                 <button
-                  onClick={() => { onSave(product, referralUrl, creatorCode, source); onClose(); }}
+                  onClick={generate}
+                  disabled={busy}
                   className="flex items-center justify-center gap-2 border border-border rounded-xl px-5 py-3 font-semibold hover:bg-surface-alt transition-colors cursor-pointer text-sm"
                 >
-                  Save
+                  {busy ? "Saving..." : "Generate"}
                 </button>
                 {product.productUrl && (
                   <a

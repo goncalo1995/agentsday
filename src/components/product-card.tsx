@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, Clock, Heart, Link2 } from "lucide-react";
+import { Star, Clock, Heart, Link2, BookmarkPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import type { ViatorProduct } from "@/lib/types";
 import { formatDuration, cn, bestImageUrl } from "@/lib/utils";
@@ -17,9 +17,10 @@ interface Props {
   onGenerateLink: (p: ViatorProduct) => void;
   onSave: (p: ViatorProduct) => void;
   isSaved: boolean;
+  hasLink?: boolean;
 }
 
-export function ProductCard({ product, index, onGenerateLink, onSave, isSaved }: Props) {
+export function ProductCard({ product, index, onGenerateLink, onSave, isSaved, hasLink }: Props) {
   const img = bestImageUrl(product.images);
   const price = product.pricing?.summary?.fromPrice;
   const currency = product.pricing?.currency ?? "USD";
@@ -53,7 +54,7 @@ export function ProductCard({ product, index, onGenerateLink, onSave, isSaved }:
         <button
           onClick={(e) => { e.stopPropagation(); onSave(product); }}
           className="absolute top-3 right-3 p-2 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm transition-all hover:scale-110 cursor-pointer"
-          title={isSaved ? "Saved" : "Save"}
+          title={isSaved ? "Saved to My Deals" : "Save to My Deals"}
         >
           <Heart className={cn("w-4 h-4 transition-colors", isSaved ? "fill-accent text-accent" : "text-foreground/70")} />
         </button>
@@ -98,13 +99,26 @@ export function ProductCard({ product, index, onGenerateLink, onSave, isSaved }:
           ) : (
             <span className="text-sm text-muted">Price on request</span>
           )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onGenerateLink(product); }}
-            className="flex items-center gap-1.5 text-xs font-semibold bg-accent text-white rounded-full px-4 py-2 hover:bg-accent/90 transition-colors shadow-sm hover:shadow cursor-pointer"
-          >
-            <Link2 className="w-3.5 h-3.5" />
-            Get Link
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); onSave(product); }}
+              disabled={isSaved}
+              className={cn(
+                "flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-2 transition-colors cursor-pointer",
+                isSaved ? "bg-success/10 text-success cursor-default" : "bg-surface-alt text-muted hover:bg-border/50",
+              )}
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              {isSaved ? "Saved" : "Save"}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onGenerateLink(product); }}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-accent text-white rounded-full px-4 py-2 hover:bg-accent/90 transition-colors shadow-sm hover:shadow cursor-pointer"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              {hasLink ? "View Link" : "Generate Link"}
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>
