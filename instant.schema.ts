@@ -15,6 +15,7 @@ const _schema = i.schema({
     }),
     creator_posts: i.entity({
       userId: i.string().indexed(),
+      campaignId: i.string().indexed().optional(),
       title: i.string(),
       slug: i.string().indexed(),
       description: i.string().optional(),
@@ -23,6 +24,27 @@ const _schema = i.schema({
       copiedFromPostId: i.string().indexed().optional(),
       createdAt: i.string().indexed(),
       updatedAt: i.string().indexed(),
+    }),
+    campaigns: i.entity({
+      userId: i.string().indexed(),
+      title: i.string(),
+      niche: i.string().indexed(),
+      status: i.string<"draft" | "active" | "archived">().indexed(),
+      startDate: i.string().indexed().optional(),
+      endDate: i.string().indexed().optional(),
+      scheduledDate: i.string().indexed().optional(),
+      createdAt: i.string().indexed(),
+      updatedAt: i.string().indexed(),
+    }),
+    campaign_content: i.entity({
+      userId: i.string().indexed(),
+      campaignId: i.string().indexed(),
+      platform: i.string<"instagram" | "tiktok" | "youtube">().indexed(),
+      contentType: i.string<"script" | "caption" | "story_text" | "image_prompt">().indexed(),
+      contentText: i.string(),
+      sourceProductUrl: i.string().optional(),
+      sourceProductTitle: i.string().optional(),
+      generatedAt: i.string().indexed(),
     }),
     post_slots: i.entity({
       userId: i.string().indexed(),
@@ -96,9 +118,7 @@ const _schema = i.schema({
   rooms: {},
 });
 
-// This helps Typescript display nicer intellisense
-type _AppSchema = typeof _schema;
-interface AppSchema extends _AppSchema {}
+type AppSchema = typeof _schema;
 const schema: AppSchema = _schema;
 
 export type { AppSchema };

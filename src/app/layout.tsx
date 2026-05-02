@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Link2 } from "lucide-react";
+import { BarChart3, FileText, FolderKanban, LayoutDashboard, Lightbulb, Link2 } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,24 +30,36 @@ export default function RootLayout({
               </span>
               <span className="font-semibold text-base tracking-tight">éFacil</span>
             </Link>
-            <nav className="flex items-center gap-1">
+            <nav className="flex items-center gap-1 overflow-x-auto">
               <Link
-                href="/discover"
+                href="/dashboard"
                 className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
               >
-                Discover
+                <span className="inline-flex items-center gap-1.5"><LayoutDashboard className="w-3.5 h-3.5" />Dashboard</span>
               </Link>
               <Link
-                href="/saved"
+                href="/campaigns"
                 className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
               >
-                Saved Deals
+                <span className="inline-flex items-center gap-1.5"><FolderKanban className="w-3.5 h-3.5" />Campaigns</span>
               </Link>
               <Link
                 href="/posts"
                 className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
               >
-                Posts
+                <span className="inline-flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" />Posts</span>
+              </Link>
+              <Link
+                href="/suggest-niches"
+                className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
+              >
+                <span className="inline-flex items-center gap-1.5"><Lightbulb className="w-3.5 h-3.5" />Niche Suggestions</span>
+              </Link>
+              <Link
+                href="/discover"
+                className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
+              >
+                <span className="inline-flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Discover</span>
               </Link>
             </nav>
           </div>

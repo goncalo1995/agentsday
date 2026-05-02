@@ -42,6 +42,22 @@ const rules = {
       delete: isOwner,
     },
   },
+  campaigns: {
+    allow: {
+      view: isOwner,
+      create: createsOwnRow,
+      update: isOwner,
+      delete: isOwner,
+    },
+  },
+  campaign_content: {
+    allow: {
+      view: isOwner,
+      create: createsOwnRow,
+      update: isOwner,
+      delete: isOwner,
+    },
+  },
   click_logs: {
     allow: {
       view: isOwner,

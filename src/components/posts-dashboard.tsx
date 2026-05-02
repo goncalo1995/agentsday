@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { id } from "@instantdb/react";
-import { Copy, ExternalLink, FileText, Link2, MousePointerClick, Plus } from "lucide-react";
+import { Copy, ExternalLink, FileText, FolderKanban, Link2, MousePointerClick, Plus, Sparkles } from "lucide-react";
 import { db } from "@/lib/instant";
-import type { AffiliateLink, ClickLog, CreatorPost, PostSlot } from "@/lib/post-types";
+import type { AffiliateLink, Campaign, ClickLog, CreatorPost, PostSlot } from "@/lib/post-types";
 import { cn, generateReferralUrl } from "@/lib/utils";
 import { makeShortCode, shortUrlFor } from "@/lib/affiliate";
 import { postStats, slugify, usernameFromEmail } from "@/lib/posts";
@@ -16,9 +17,12 @@ type CopyPostTx =
   | ReturnType<(typeof db.tx.affiliate_links)[string]["update"]>;
 
 export function PostsDashboard() {
+  const searchParams = useSearchParams();
   const auth = db.useAuth();
   const userId = auth.user?.id;
   const [username, setUsername] = useState(usernameFromEmail(auth.user?.email));
+  const campaignId = searchParams.get("campaignId") ?? "";
+  const createdCampaignId = searchParams.get("createdCampaignId") ?? "";
 
   const profileQuery = db.useQuery(userId ? { $users: {} } : null);
   const postsQuery = db.useQuery(
@@ -33,17 +37,21 @@ export function PostsDashboard() {
   const clicksQuery = db.useQuery(
     userId ? { click_logs: { $: { where: { userId }, order: { timestamp: "desc" } } } } : null,
   );
+  const campaignsQuery = db.useQuery(
+    userId ? { campaigns: { $: { where: { userId }, order: { createdAt: "desc" } } } } : null,
+  );
 
   const profile = profileQuery.data?.$users?.find((user) => user.id === userId);
   const posts = (postsQuery.data?.creator_posts ?? []) as CreatorPost[];
   const slots = (slotsQuery.data?.post_slots ?? []) as PostSlot[];
   const links = (linksQuery.data?.affiliate_links ?? []) as AffiliateLink[];
   const clicks = (clicksQuery.data?.click_logs ?? []) as ClickLog[];
+  const campaigns = (campaignsQuery.data?.campaigns ?? []) as Campaign[];
+  const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const filteredPosts = campaignId ? posts.filter((post) => post.campaignId === campaignId) : posts;
+  const activeCampaign = campaignId ? campaignById.get(campaignId) : undefined;
 
-  const rows = useMemo(
-    () => posts.map((post) => ({ post, stats: postStats(post, slots, links, clicks) })),
-    [posts, slots, links, clicks],
-  );
+  const rows = filteredPosts.map((post) => ({ post, stats: postStats(post, slots, links, clicks) }));
   const totalClicks = rows.reduce((sum, row) => sum + row.stats.clicks, 0);
   const totalCommission = rows.reduce((sum, row) => sum + row.stats.commission, 0);
 
@@ -124,7 +132,7 @@ export function PostsDashboard() {
     await db.transact(chunks);
   }
 
-  if (postsQuery.isLoading || slotsQuery.isLoading || linksQuery.isLoading || clicksQuery.isLoading) {
+  if (postsQuery.isLoading || slotsQuery.isLoading || linksQuery.isLoading || clicksQuery.isLoading || campaignsQuery.isLoading) {
     return <div className="min-h-[50vh] grid place-items-center"><div className="h-10 w-10 rounded-full border-2 border-accent border-t-transparent animate-spin" /></div>;
   }
 
@@ -133,13 +141,32 @@ export function PostsDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Posts</h1>
-          <p className="text-sm text-muted">Grouped short links for creator content alternatives.</p>
+          <p className="text-sm text-muted">
+            {activeCampaign ? `Filtered to ${activeCampaign.title}.` : "Grouped short links for creator content alternatives."}
+          </p>
         </div>
         <Link href="/posts/new" className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
           <Plus className="w-4 h-4" />
           Create Post
         </Link>
       </div>
+
+      {createdCampaignId && (
+        <div className="rounded-2xl border border-success/20 bg-success/5 p-4 text-sm flex flex-wrap items-center justify-between gap-3">
+          <span className="font-semibold text-success">Post created! Generate content for this campaign?</span>
+          <Link href={`/campaigns/${createdCampaignId}`} className="inline-flex items-center gap-2 rounded-xl bg-success px-3 py-2 text-xs font-semibold text-white">
+            <Sparkles className="w-3.5 h-3.5" />
+            Open campaign
+          </Link>
+        </div>
+      )}
+
+      {activeCampaign && (
+        <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4 text-sm flex flex-wrap items-center justify-between gap-3">
+          <span className="font-semibold text-accent">Showing posts linked to {activeCampaign.title}</span>
+          <Link href="/posts" className="text-xs font-semibold text-accent hover:underline">Clear filter</Link>
+        </div>
+      )}
 
       {!profile?.username && (
         <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 flex flex-wrap items-end gap-3">
@@ -167,7 +194,15 @@ export function PostsDashboard() {
                   <span className={cn("text-xs font-semibold px-2 py-1 rounded-full", post.isPublic ? "bg-success/10 text-success" : "bg-surface-alt text-muted")}>{post.isPublic ? "Public" : "Private"}</span>
                 </div>
                 <p className="text-sm text-muted">{post.description}</p>
-                <p className="mt-1 text-xs text-muted">{new Date(post.createdAt).toLocaleDateString()}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
+                  <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                  {post.campaignId && campaignById.has(post.campaignId) && (
+                    <Link href={`/campaigns/${post.campaignId}`} className="inline-flex items-center gap-1 font-semibold text-accent hover:underline">
+                      <FolderKanban className="w-3.5 h-3.5" />
+                      {campaignById.get(post.campaignId)?.title}
+                    </Link>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 {profile?.username && post.isPublic && (

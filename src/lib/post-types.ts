@@ -10,6 +10,7 @@ export type CreatorProfile = {
 export type CreatorPost = {
   id: string;
   userId: string;
+  campaignId?: string;
   title: string;
   slug: string;
   description?: string;
@@ -18,6 +19,31 @@ export type CreatorPost = {
   copiedFromPostId?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type Campaign = {
+  id: string;
+  userId: string;
+  title: string;
+  niche: string;
+  status: "draft" | "active" | "archived";
+  startDate?: string;
+  endDate?: string;
+  scheduledDate?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CampaignContent = {
+  id: string;
+  userId: string;
+  campaignId: string;
+  platform: "instagram" | "tiktok" | "youtube";
+  contentType: "script" | "caption" | "story_text" | "image_prompt";
+  contentText: string;
+  sourceProductUrl?: string;
+  sourceProductTitle?: string;
+  generatedAt: string;
 };
 
 export type PostSlot = {

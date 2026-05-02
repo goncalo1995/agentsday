@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { id } from "@instantdb/react";
-import { ArrowLeft, Bot, Check, Copy, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Bot, Check, Copy, FolderKanban, Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/instant";
 import { makeShortCode } from "@/lib/affiliate";
-import type { SavedDeal } from "@/lib/post-types";
+import type { Campaign, SavedDeal } from "@/lib/post-types";
 import type { ViatorProduct } from "@/lib/types";
 import { cn, generateReferralUrl } from "@/lib/utils";
 import { productToSlotInput, savedDealToSlotInput, slugify, usernameFromEmail } from "@/lib/posts";
@@ -21,15 +21,20 @@ type WorkingSlot = {
 };
 
 type CreatePostTx =
+  | ReturnType<(typeof db.tx.campaigns)[string]["update"]>
   | ReturnType<(typeof db.tx.creator_posts)[string]["update"]>
   | ReturnType<(typeof db.tx.post_slots)[string]["update"]>
   | ReturnType<(typeof db.tx.affiliate_links)[string]["update"]>;
 
 export function CreatePostWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = db.useAuth();
   const userId = auth.user?.id;
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(searchParams.get("campaignId") ?? "");
+  const [campaignTitle, setCampaignTitle] = useState("");
+  const [campaignNiche, setCampaignNiche] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(true);
@@ -50,8 +55,18 @@ export function CreatePostWizard() {
         }
       : null,
   );
+  const campaignsQuery = db.useQuery(
+    userId
+      ? {
+          campaigns: {
+            $: { where: { userId }, order: { createdAt: "desc" } },
+          },
+        }
+      : null,
+  );
   const profile = profileQuery.data?.$users?.find((user) => user.id === userId);
   const savedDeals = (dealsQuery.data?.saved_deals ?? []) as SavedDeal[];
+  const campaigns = (campaignsQuery.data?.campaigns ?? []) as Campaign[];
   const hasUsername = !!profile?.username;
   const canSave = !!title.trim() && slots.length >= 2 && slots.length <= 5 && (!isPublic || hasUsername || !!username.trim());
 
@@ -59,6 +74,25 @@ export function CreatePostWizard() {
     () => slots.map((slot) => slot.deal?.productImageUrl || slot.product?.images?.[0]?.variants?.[0]?.url || "").filter(Boolean),
     [slots],
   );
+
+  async function createDraftCampaign() {
+    if (!userId || !campaignTitle.trim()) return;
+    const campaignId = id();
+    const now = new Date().toISOString();
+    await db.transact(
+      db.tx.campaigns[campaignId].update({
+        userId,
+        title: campaignTitle,
+        niche: campaignNiche || "creator picks",
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+    setSelectedCampaignId(campaignId);
+    setCampaignTitle("");
+    setCampaignNiche("");
+  }
 
   function addSavedDeal(dealId: string) {
     if (slots.length >= 5) return;
@@ -119,6 +153,7 @@ export function CreatePostWizard() {
       const chunks: CreatePostTx[] = [
         db.tx.creator_posts[postId].update({
           userId,
+          campaignId: selectedCampaignId || undefined,
           title,
           slug: postSlug,
           description,
@@ -179,7 +214,7 @@ export function CreatePostWizard() {
       });
 
       await db.transact(chunks);
-      router.push("/posts");
+      router.push(selectedCampaignId ? `/posts?createdCampaignId=${selectedCampaignId}` : "/posts");
     } finally {
       setBusy(false);
     }
@@ -216,7 +251,7 @@ export function CreatePostWizard() {
       </div>
 
       <div className="flex gap-2">
-        {[1, 2, 3].map((item) => (
+        {[0, 1, 2, 3].map((item) => (
           <button
             key={item}
             onClick={() => setStep(item)}
@@ -225,6 +260,50 @@ export function CreatePostWizard() {
           />
         ))}
       </div>
+
+      {step === 0 && (
+        <section className="rounded-2xl border border-border bg-surface p-5 space-y-5">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <FolderKanban className="w-4 h-4 text-accent" />
+              Campaign
+            </h2>
+            <p className="text-sm text-muted mt-1">Link this post to a campaign, or continue without one.</p>
+          </div>
+          <select
+            value={selectedCampaignId}
+            onChange={(e) => setSelectedCampaignId(e.target.value)}
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm"
+          >
+            <option value="">No campaign</option>
+            {campaigns.map((campaign) => (
+              <option key={campaign.id} value={campaign.id}>{campaign.title} · {campaign.niche}</option>
+            ))}
+          </select>
+
+          <div className="grid md:grid-cols-[1fr_220px_auto] gap-3 rounded-2xl bg-surface-alt p-3">
+            <input
+              value={campaignTitle}
+              onChange={(e) => setCampaignTitle(e.target.value)}
+              placeholder="New campaign title"
+              className="rounded-xl border border-border bg-surface px-3 py-2 text-sm"
+            />
+            <input
+              value={campaignNiche}
+              onChange={(e) => setCampaignNiche(e.target.value)}
+              placeholder="niche"
+              className="rounded-xl border border-border bg-surface px-3 py-2 text-sm"
+            />
+            <button onClick={createDraftCampaign} disabled={!campaignTitle.trim()} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-border/40 disabled:opacity-50">
+              Create draft
+            </button>
+          </div>
+
+          <button onClick={() => setStep(1)} className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
+            Continue
+          </button>
+        </section>
+      )}
 
       {step === 1 && (
         <section className="rounded-2xl border border-border bg-surface p-5 space-y-4">
