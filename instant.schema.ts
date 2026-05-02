@@ -9,11 +9,47 @@ const _schema = i.schema({
       imageURL: i.string().optional(),
       type: i.string().optional(),
       displayName: i.string().optional(),
+      username: i.string().unique().indexed().optional(),
+      bio: i.string().optional(),
       createdAt: i.string().optional(),
+    }),
+    creator_posts: i.entity({
+      userId: i.string().indexed(),
+      title: i.string(),
+      slug: i.string().indexed(),
+      description: i.string().optional(),
+      coverImageUrl: i.string().optional(),
+      isPublic: i.boolean().indexed(),
+      copiedFromPostId: i.string().indexed().optional(),
+      createdAt: i.string().indexed(),
+      updatedAt: i.string().indexed(),
+    }),
+    post_slots: i.entity({
+      userId: i.string().indexed(),
+      postId: i.string().indexed(),
+      slotIndex: i.number().indexed(),
+      label: i.string(),
+      viatorProductId: i.string().indexed(),
+      productTitle: i.string(),
+      productUrl: i.string(),
+      productImageUrl: i.string().optional(),
+      destination: i.string().indexed().optional(),
+      price: i.number().optional(),
+      currency: i.string().optional(),
+      rating: i.number().optional(),
+      reviewCount: i.number().optional(),
+      durationLabel: i.string().optional(),
+      source: i.string<"saved_deal" | "ai_alternative">().indexed(),
+      active: i.boolean().indexed(),
+      isPublic: i.boolean().indexed(),
+      createdAt: i.string().indexed(),
     }),
     affiliate_links: i.entity({
       linkId: i.string().unique().indexed(),
       userId: i.string().indexed(),
+      postId: i.string().indexed().optional(),
+      slotId: i.string().indexed().optional(),
+      slotLabel: i.string().optional(),
       viatorProductId: i.string().indexed(),
       shortCode: i.string().unique().indexed(),
       affiliateUrl: i.string(),
@@ -32,6 +68,8 @@ const _schema = i.schema({
     click_logs: i.entity({
       userId: i.string().indexed(),
       linkId: i.string().indexed(),
+      postId: i.string().indexed().optional(),
+      slotId: i.string().indexed().optional(),
       shortCode: i.string().indexed(),
       viatorProductId: i.string().indexed(),
       timestamp: i.string().indexed(),
@@ -58,6 +96,7 @@ const _schema = i.schema({
   rooms: {},
 });
 
+// This helps Typescript display nicer intellisense
 type _AppSchema = typeof _schema;
 interface AppSchema extends _AppSchema {}
 const schema: AppSchema = _schema;

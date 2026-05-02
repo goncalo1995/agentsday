@@ -4,8 +4,8 @@ import { Link2 } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CreatorLinks — Discover & Share Travel Experiences",
-  description: "Find amazing travel experiences and generate referral-ready links for your audience",
+  title: "éFacil — Creator Travel Affiliate Platform",
+  description: "Create travel posts, compare Viator alternatives, and track slot-level affiliate performance.",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
               <span className="w-8 h-8 bg-accent rounded-xl flex items-center justify-center shadow-sm">
                 <Link2 className="w-4 h-4 text-white" />
               </span>
-              <span className="font-semibold text-base tracking-tight">CreatorLinks</span>
+              <span className="font-semibold text-base tracking-tight">éFacil</span>
             </Link>
             <nav className="flex items-center gap-1">
               <Link
@@ -41,7 +41,13 @@ export default function RootLayout({
                 href="/saved"
                 className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
               >
-                My Links
+                Saved Deals
+              </Link>
+              <Link
+                href="/posts"
+                className="text-sm font-medium text-muted hover:text-foreground px-4 py-2 rounded-full hover:bg-surface-alt transition-colors"
+              >
+                Posts
               </Link>
             </nav>
           </div>

@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
-import { resolveDestinationId } from "@/lib/destinations";
+import { DESTINATIONS, resolveDestinationId } from "@/lib/destinations";
 
 const openrouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
@@ -82,7 +82,6 @@ function fallbackExtract(prompt: string) {
   let destination = "";
   let destinationId = "";
   // Try to find a known destination in the prompt
-  const { DESTINATIONS } = require("@/lib/destinations");
   for (const [name, id] of Object.entries(DESTINATIONS)) {
     if (prompt.toLowerCase().includes(name)) {
       destination = name.charAt(0).toUpperCase() + name.slice(1);

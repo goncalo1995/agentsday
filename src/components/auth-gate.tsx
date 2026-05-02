@@ -74,12 +74,10 @@ function LoginPanel() {
     const oauthCode = params.get("code");
     if (!oauthCode) return;
 
-    setBusy(true);
     db.auth
       .exchangeOAuthCode({ code: oauthCode })
       .then(() => window.history.replaceState(null, "", window.location.pathname))
-      .catch((err) => setError(err?.body?.message ?? err?.message ?? "Google sign-in failed."))
-      .finally(() => setBusy(false));
+      .catch((err) => setError(err?.body?.message ?? err?.message ?? "Google sign-in failed."));
   }, []);
 
   const googleUrl = useMemo(() => {

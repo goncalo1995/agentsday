@@ -129,7 +129,7 @@ export function SavedLinksPage() {
     () => clicks.filter((click) => isHumanUserAgent(click.userAgent)),
     [clicks],
   );
-  const now = Date.now();
+  const [now] = useState(() => Date.now());
   const thirtyDaysAgo = now - 30 * 86_400_000;
   const totalClicks = humanClicks.length;
   const clicksLast30 = humanClicks.filter((click) => new Date(click.timestamp).getTime() >= thirtyDaysAgo).length;

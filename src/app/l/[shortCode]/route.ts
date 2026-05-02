@@ -41,6 +41,8 @@ export async function GET(
     adminDb.tx.click_logs[id()].update({
       userId: link.userId,
       linkId: link.linkId,
+      postId: link.postId,
+      slotId: link.slotId,
       shortCode: link.shortCode,
       viatorProductId: link.viatorProductId,
       timestamp: new Date().toISOString(),

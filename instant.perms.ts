@@ -26,6 +26,22 @@ const rules = {
       delete: isOwner,
     },
   },
+  creator_posts: {
+    allow: {
+      view: isOwner,
+      create: createsOwnRow,
+      update: isOwner,
+      delete: isOwner,
+    },
+  },
+  post_slots: {
+    allow: {
+      view: isOwner,
+      create: createsOwnRow,
+      update: isOwner,
+      delete: isOwner,
+    },
+  },
   click_logs: {
     allow: {
       view: isOwner,
