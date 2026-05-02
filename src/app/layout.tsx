@@ -4,8 +4,8 @@ import { BarChart3, FileText, FolderKanban, LayoutDashboard, Lightbulb, Link2 } 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "éFacil — Creator Travel Affiliate Platform",
-  description: "Create travel posts, compare Viator alternatives, and track slot-level affiliate performance.",
+  title: "VibeKit — AI campaign builder for EU travel creators",
+  description: "Turn travel content ideas into affiliate links, captions, hooks, disclosures, and shareable campaign kits.",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
               <span className="w-8 h-8 bg-accent rounded-xl flex items-center justify-center shadow-sm">
                 <Link2 className="w-4 h-4 text-white" />
               </span>
-              <span className="font-semibold text-base tracking-tight">éFacil</span>
+              <span className="font-semibold text-base tracking-tight">VibeKit</span>
             </Link>
             <nav className="flex items-center gap-1 overflow-x-auto">
               <Link

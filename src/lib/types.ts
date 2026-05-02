@@ -97,7 +97,7 @@ export interface SearchStep {
 
 // ── Viator search API response (from our proxy) ──
 export interface ViatorSearchResponse {
-  products: ViatorProduct[];
+  products: { results: ViatorProduct[]; totalCount: number } | ViatorProduct[];
   attractions: ViatorAttraction[];
   totalProducts: number;
   error?: boolean;

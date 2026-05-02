@@ -1,10 +1,10 @@
 import { AuthGate } from "@/components/auth-gate";
-import { Dashboard } from "@/components/dashboard";
+import { DiscoverTabs } from "@/components/discover-tabs";
 
 export default function DiscoverPage() {
   return (
     <AuthGate>
-      <Dashboard />
+      <DiscoverTabs />
     </AuthGate>
   );
 }

@@ -129,8 +129,11 @@ export function Dashboard() {
         }),
       });
       const searchData: ViatorSearchResponse = await searchRes.json();
+      const searchProducts = Array.isArray(searchData.products)
+        ? searchData.products
+        : searchData.products?.results ?? [];
 
-      if (searchData.error || (searchData.products.length === 0 && searchData.attractions.length === 0)) {
+      if (searchData.error || (searchProducts.length === 0 && searchData.attractions.length === 0)) {
         setSteps([
           { label: "Destination detected", status: "done", detail: agentData.destination },
           { label: "Keywords extracted", status: "done", detail: agentData.keywords.slice(0, 3).join(", ") },
@@ -141,7 +144,7 @@ export function Dashboard() {
           ? "The Viator provider returned an error. Please try again in a moment."
           : "No experiences found for this search. Try different keywords.");
       } else {
-        const enriched = searchData.products
+        const enriched = searchProducts
           .filter((p) => {
             const price = p.pricing?.summary?.fromPrice;
             return !agentData.maxPrice || price == null || price <= agentData.maxPrice;

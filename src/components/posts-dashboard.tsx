@@ -160,11 +160,15 @@ export function PostsDashboard() {
                 <p className="text-sm text-muted">{post.description}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
                   <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                  {post.campaignId && campaignById.has(post.campaignId) && (
+                  {post.campaignId && campaignById.has(post.campaignId) ? (
                     <Link href={`/campaigns/${post.campaignId}`} className="inline-flex items-center gap-1 font-semibold text-accent hover:underline">
                       <FolderKanban className="w-3.5 h-3.5" />
                       {campaignById.get(post.campaignId)?.title}
                     </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 font-medium text-muted">
+                      No campaign
+                    </span>
                   )}
                 </div>
               </div>

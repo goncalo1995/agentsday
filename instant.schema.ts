@@ -125,6 +125,80 @@ const _schema = i.schema({
       provider: i.string().indexed(),
       createdAt: i.string().indexed(),
     }),
+    beta_leads: i.entity({
+      email: i.string().indexed(),
+      nameOrHandle: i.string(),
+      countryOrRegion: i.string(),
+      creatorType: i.string().indexed(),
+      primaryPlatform: i.string(),
+      followerRange: i.string().indexed(),
+      niche: i.string(),
+      affiliateExperience: i
+        .string<
+          | "yes_consistently"
+          | "yes_occasionally"
+          | "tried_not_much"
+          | "no_but_i_want_to"
+          | "no_not_interested"
+        >()
+        .indexed(),
+      contactConsent: i.boolean(),
+      wouldSaveTime: i
+        .string<"definitely" | "probably" | "not_sure" | "probably_not" | "no">()
+        .indexed(),
+      wouldSaveTimeDetails: i.string().optional(),
+      preferredLinkModel: i
+        .string<
+          | "use_my_own_affiliate_accounts"
+          | "vibekit_managed_links_and_payouts"
+          | "both"
+          | "not_sure"
+        >()
+        .optional(),
+      fairPricingModel: i
+        .string<
+          | "monthly_subscription"
+          | "small_commission_share"
+          | "subscription_plus_commission"
+          | "one_time_campaign_fee"
+          | "not_sure"
+        >()
+        .optional(),
+      firstUseCase: i.string(),
+      contentExampleOrNote: i.string().optional(),
+      variant: i.string<"A" | "B">().indexed(),
+      experimentVersion: i.string().indexed(),
+      isDebugOverride: i.boolean().indexed(),
+      visitorId: i.string().indexed(),
+      utmSource: i.string().indexed().optional(),
+      utmMedium: i.string().optional(),
+      utmCampaign: i.string().optional(),
+      utmContent: i.string().optional(),
+      referrer: i.string().optional(),
+      sourcePath: i.string(),
+      deviceType: i.string<"mobile" | "desktop" | "tablet" | "unknown">().indexed(),
+      status: i.string<"new" | "reviewed" | "contacted" | "accepted" | "rejected">().indexed(),
+      createdAt: i.string().indexed(),
+      updatedAt: i.string().indexed(),
+    }),
+    landing_events: i.entity({
+      eventType: i
+        .string<"view" | "cta_click" | "form_start" | "lead_submit" | "demo_reveal">()
+        .indexed(),
+      variant: i.string<"A" | "B">().indexed(),
+      experimentVersion: i.string().indexed(),
+      isDebugOverride: i.boolean().indexed(),
+      visitorId: i.string().indexed(),
+      deviceType: i.string<"mobile" | "desktop" | "tablet" | "unknown">().indexed(),
+      utmSource: i.string().indexed().optional(),
+      utmMedium: i.string().optional(),
+      utmCampaign: i.string().optional(),
+      utmContent: i.string().optional(),
+      referrer: i.string().optional(),
+      path: i.string(),
+      metadataJson: i.string().optional(),
+      createdAt: i.string().indexed(),
+    }),
   },
   links: {},
   rooms: {},

@@ -133,8 +133,9 @@ export function CampaignDetailPage({ campaignId }: { campaignId: string }) {
         }),
       });
       const data: ViatorSearchResponse = await searchRes.json();
-      setProducts(data.products.map((product) => ({ ...product, provider: "viator" })).slice(0, 8));
-      if (data.products.length === 0) setProductError("No products found. Try a broader search.");
+      const products = Array.isArray(data.products) ? data.products : data.products?.results ?? [];
+      setProducts(products.map((product) => ({ ...product, provider: "viator" })).slice(0, 8));
+      if (products.length === 0) setProductError("No products found. Try a broader search.");
     } catch {
       setProductError("Product search failed. Try again in a moment.");
     } finally {

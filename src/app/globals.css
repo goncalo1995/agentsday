@@ -84,3 +84,19 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+.input {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 12px 14px;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.input:focus {
+  border-color: var(--foreground);
+  box-shadow: 0 0 0 3px rgba(34, 34, 34, 0.08);
+}

@@ -82,6 +82,22 @@ const rules = {
       delete: isOwner,
     },
   },
+  beta_leads: {
+    allow: {
+      view: "false",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+  },
+  landing_events: {
+    allow: {
+      view: "false",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+  },
 } as InstantRules;
 
 export default rules;
