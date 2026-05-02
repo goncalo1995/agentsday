@@ -1,63 +1,33 @@
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateObject } from "ai";
+import { z } from "zod";
+
 export const maxDuration = 30;
 
-type CreatorIntent = {
-  intentType: "viator_creator_search";
-  creatorGoal: string;
-  destination: {
-    city: string;
-    country: string;
-    destinationId: number | null;
-  };
-  keywords: string[];
-  categories: string[];
-  dateWindow: {
-    startDate: string | null;
-    endDate: string | null;
-  };
-  budget: {
-    currency: "EUR" | "USD";
-    min: number | null;
-    max: number | null;
-  };
-  contentAngle: string | null;
-};
+const intentSchema = z.object({
+  intentType: z.literal("viator_creator_search"),
+  creatorGoal: z.string(),
+  destination: z.object({
+    city: z.string(),
+    country: z.string(),
+    destinationId: z.number().nullable(),
+  }),
+  keywords: z.array(z.string()),
+  categories: z.array(z.string()),
+  dateWindow: z.object({
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+  }),
+  budget: z.object({
+    currency: z.enum(["EUR", "USD"]),
+    min: z.number().nullable(),
+    max: z.number().nullable(),
+  }),
+  contentAngle: z.string().nullable(),
+});
 
 function destinationIdFor(city: string) {
   return city.toLowerCase().trim() === "lisbon" ? 538 : null;
-}
-
-function normalizeIntent(input: Partial<CreatorIntent>, message: string): CreatorIntent {
-  const city = input.destination?.city || "Lisbon";
-  const country = input.destination?.country || (city.toLowerCase() === "lisbon" ? "Portugal" : "");
-  const destinationId = input.destination?.destinationId ?? destinationIdFor(city);
-
-  return {
-    intentType: "viator_creator_search",
-    creatorGoal: input.creatorGoal || message,
-    destination: {
-      city,
-      country,
-      destinationId,
-    },
-    keywords: Array.isArray(input.keywords) ? input.keywords : ["spa", "wellness"],
-    categories: Array.isArray(input.categories) ? input.categories : ["Spa & Wellness"],
-    dateWindow: {
-      startDate: input.dateWindow?.startDate ?? null,
-      endDate: input.dateWindow?.endDate ?? null,
-    },
-    budget: {
-      currency: input.budget?.currency === "USD" ? "USD" : "EUR",
-      min: typeof input.budget?.min === "number" ? input.budget.min : null,
-      max: typeof input.budget?.max === "number" ? input.budget.max : null,
-    },
-    contentAngle: input.contentAngle ?? null,
-  };
-}
-
-function extractJson(text: string) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  const raw = fenced ?? text.match(/\{[\s\S]*\}/)?.[0] ?? text;
-  return JSON.parse(raw);
 }
 
 export async function POST(req: Request) {
@@ -77,57 +47,34 @@ export async function POST(req: Request) {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: `Extract a compact Viator creator search intent as JSON only.
+    const openrouter = createOpenRouter({ apiKey });
+
+    const { object } = await generateObject({
+      model: openrouter("openai/gpt-4o-mini"),
+      schema: intentSchema,
+      system: `Extract a compact Viator creator search intent as JSON only.
 Today's date is ${today}.
-Return exactly this shape:
-{
-  "intentType": "viator_creator_search",
-  "creatorGoal": string,
-  "destination": { "city": string, "country": string, "destinationId": number | null },
-  "keywords": string[],
-  "categories": string[],
-  "dateWindow": { "startDate": string | null, "endDate": string | null },
-  "budget": { "currency": "EUR" | "USD", "min": number | null, "max": number | null },
-  "contentAngle": string | null
-}
-For Lisbon, Portugal, destinationId must be 538.
-Keep keywords useful for Viator products/search.
-Use null when dates or budget are not stated.
+Use intentType "viator_creator_search".
+For Lisbon, Portugal, set destinationId to 538. If the city is Lisbon and the ID is unknown, still use 538.
+Keep keywords short and useful for Viator products/search.
+Map creator ideas into categories like Spa & Wellness, Food & Drink, Tours, Outdoor Activities, Cruises, Culture, or Day Trips.
+Use EUR for European destinations unless USD is clearly requested.
+Use null for dates and budget values that are not stated.
 Do not include reasoning.`,
-          },
-          { role: "user", content: message },
-        ],
-      }),
+      prompt: message,
     });
 
-    if (!response.ok) {
-      return Response.json(
-        { error: "OpenRouter request failed", status: response.status },
-        { status: response.status },
-      );
-    }
+    const destinationId =
+      object.destination.destinationId ?? destinationIdFor(object.destination.city);
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content || typeof content !== "string") {
-      throw new Error("OpenRouter returned an empty response");
-    }
+    const intent = {
+      ...object,
+      destination: {
+        ...object.destination,
+        destinationId,
+      },
+    };
 
-    const intent = normalizeIntent(extractJson(content), message);
-    const destinationId = intent.destination.destinationId;
     const searchTerm = [
       ...intent.keywords,
       intent.destination.city,
@@ -136,28 +83,29 @@ Do not include reasoning.`,
       .filter(Boolean)
       .join(" ");
 
-    const filtering: Record<string, unknown> = {
-      destination: String(destinationId ?? ""),
-    };
+    const productFiltering: Record<string, unknown> = {};
+    if (intent.budget.min !== null) productFiltering.lowestPrice = intent.budget.min;
+    if (intent.budget.max !== null) productFiltering.highestPrice = intent.budget.max;
+    if (intent.dateWindow.startDate) productFiltering.startDate = intent.dateWindow.startDate;
+    if (intent.dateWindow.endDate) productFiltering.endDate = intent.dateWindow.endDate;
 
-    if (searchTerm) filtering.searchTerm = searchTerm;
-    if (intent.budget.min !== null) filtering.lowestPrice = intent.budget.min;
-    if (intent.budget.max !== null) filtering.highestPrice = intent.budget.max;
-    if (intent.dateWindow.startDate) filtering.startDate = intent.dateWindow.startDate;
-    if (intent.dateWindow.endDate) filtering.endDate = intent.dateWindow.endDate;
-
-    const viatorRequest = {
-      filtering,
-      sorting: {
+    const viatorRequest: Record<string, unknown> = {
+      searchTerm,
+      searchTypes: [
+        { searchType: "PRODUCTS", pagination: { start: 1, count: 12 } },
+        { searchType: "ATTRACTIONS", pagination: { start: 1, count: 6 } },
+        { searchType: "DESTINATIONS", pagination: { start: 1, count: 6 } },
+      ],
+      productSorting: {
         sort: "REVIEW_AVG_RATING",
         order: "DESCENDING",
       },
-      pagination: {
-        start: 1,
-        count: 12,
-      },
       currency: intent.budget.currency,
     };
+
+    if (Object.keys(productFiltering).length > 0) {
+      viatorRequest.productFiltering = productFiltering;
+    }
 
     return Response.json({
       intent,
