@@ -46,6 +46,18 @@ const _schema = i.schema({
       sourceProductTitle: i.string().optional(),
       generatedAt: i.string().indexed(),
     }),
+    external_commitments: i.entity({
+      userId: i.string().indexed(),
+      campaignId: i.string().indexed().optional(),
+      title: i.string(),
+      partnerName: i.string(),
+      dueDate: i.string().indexed(),
+      status: i.string<"planned" | "in_progress" | "delivered" | "paid">().indexed(),
+      fee: i.number().optional(),
+      notes: i.string().optional(),
+      createdAt: i.string().indexed(),
+      updatedAt: i.string().indexed(),
+    }),
     post_slots: i.entity({
       userId: i.string().indexed(),
       postId: i.string().indexed(),

@@ -68,11 +68,11 @@ export function SuggestNichesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">What should I post next?</h1>
-          <p className="text-sm text-muted">AI niche ideas based on your human click performance when available.</p>
+          <p className="text-sm text-muted">Based on your past clicks, here are 3 niches to try.</p>
         </div>
         <button onClick={loadSuggestions} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          Generate niches
+          {suggestions.length > 0 ? "Generate again" : "Generate niches"}
         </button>
       </div>
 
@@ -126,14 +126,24 @@ export function SuggestNichesPage() {
                 <Check className="w-4 h-4" />
                 Use this niche
               </button>
-              <button onClick={() => createCampaign(suggestion)} className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-surface-alt">
+              <Link
+                href={`/campaigns/new?title=${encodeURIComponent(suggestion.niche)}&niche=${encodeURIComponent(suggestion.niche)}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-surface-alt"
+              >
                 <Plus className="w-4 h-4" />
-                Quick create
-              </button>
+                Create campaign
+              </Link>
             </div>
           </article>
         ))}
       </div>
+
+      {suggestions.length > 0 && (
+        <button onClick={loadSuggestions} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-surface-alt disabled:opacity-50">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          Generate again
+        </button>
+      )}
     </div>
   );
 }

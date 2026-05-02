@@ -3,25 +3,26 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { id } from "@instantdb/react";
-import { Copy, ExternalLink, FileText, FolderKanban, Link2, MousePointerClick, Plus, Sparkles } from "lucide-react";
+import { Copy, ExternalLink, FileText, FolderKanban, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { db } from "@/lib/instant";
 import type { AffiliateLink, Campaign, ClickLog, CreatorPost, PostSlot } from "@/lib/post-types";
-import { cn, generateReferralUrl } from "@/lib/utils";
-import { makeShortCode, shortUrlFor } from "@/lib/affiliate";
+import { cn } from "@/lib/utils";
+import { shortUrlFor } from "@/lib/affiliate";
 import { postStats, slugify, usernameFromEmail } from "@/lib/posts";
 
-type CopyPostTx =
-  | ReturnType<(typeof db.tx.creator_posts)[string]["update"]>
-  | ReturnType<(typeof db.tx.post_slots)[string]["update"]>
-  | ReturnType<(typeof db.tx.affiliate_links)[string]["update"]>;
+type DeletePostTx =
+  | ReturnType<(typeof db.tx.creator_posts)[string]["delete"]>
+  | ReturnType<(typeof db.tx.post_slots)[string]["delete"]>
+  | ReturnType<(typeof db.tx.affiliate_links)[string]["delete"]>;
 
 export function PostsDashboard() {
   const searchParams = useSearchParams();
   const auth = db.useAuth();
   const userId = auth.user?.id;
   const [username, setUsername] = useState(usernameFromEmail(auth.user?.email));
-  const campaignId = searchParams.get("campaignId") ?? "";
+  const [campaignId, setCampaignId] = useState(searchParams.get("campaignId") ?? "");
+  const [search, setSearch] = useState("");
+  const [copied, setCopied] = useState("");
   const createdCampaignId = searchParams.get("createdCampaignId") ?? "";
 
   const profileQuery = db.useQuery(userId ? { $users: {} } : null);
@@ -48,87 +49,32 @@ export function PostsDashboard() {
   const clicks = (clicksQuery.data?.click_logs ?? []) as ClickLog[];
   const campaigns = (campaignsQuery.data?.campaigns ?? []) as Campaign[];
   const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
-  const filteredPosts = campaignId ? posts.filter((post) => post.campaignId === campaignId) : posts;
+  const filteredPosts = posts.filter((post) => {
+    const campaignMatch = !campaignId || post.campaignId === campaignId;
+    const text = `${post.title} ${post.description ?? ""}`.toLowerCase();
+    return campaignMatch && text.includes(search.toLowerCase());
+  });
   const activeCampaign = campaignId ? campaignById.get(campaignId) : undefined;
 
   const rows = filteredPosts.map((post) => ({ post, stats: postStats(post, slots, links, clicks) }));
-  const totalClicks = rows.reduce((sum, row) => sum + row.stats.clicks, 0);
-  const totalCommission = rows.reduce((sum, row) => sum + row.stats.commission, 0);
-
   async function saveUsername() {
     if (!userId || !username.trim()) return;
     await db.transact(db.tx.$users[userId].update({ username: slugify(username).replace(/-/g, "_") }));
   }
 
-  async function copyPost(post: CreatorPost) {
+  async function copyText(text: string, key: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1400);
+  }
+
+  async function deletePost(post: CreatorPost) {
     if (!userId) return;
-    const sourceSlots = slots.filter((slot) => slot.postId === post.id);
-    const newPostId = id();
-    const now = new Date().toISOString();
-    const creatorCode = profile?.username || usernameFromEmail(auth.user?.email);
-    const chunks: CopyPostTx[] = [
-      db.tx.creator_posts[newPostId].update({
-        userId,
-        title: `${post.title} (Copy)`,
-        slug: `${post.slug}-copy-${newPostId.slice(0, 5)}`,
-        description: post.description,
-        coverImageUrl: post.coverImageUrl,
-        isPublic: false,
-        copiedFromPostId: post.id,
-        createdAt: now,
-        updatedAt: now,
-      }),
+    const chunks: DeletePostTx[] = [
+      db.tx.creator_posts[post.id].delete(),
+      ...slots.filter((slot) => slot.postId === post.id).map((slot) => db.tx.post_slots[slot.id].delete()),
+      ...links.filter((link) => link.postId === post.id).map((link) => db.tx.affiliate_links[link.id].delete()),
     ];
-
-    sourceSlots.forEach((slot, index) => {
-      const slotId = id();
-      const linkId = id();
-      const shortCode = makeShortCode(slot.viatorProductId);
-      chunks.push(
-        db.tx.post_slots[slotId].update({
-          userId,
-          postId: newPostId,
-          slotIndex: index,
-          label: slot.label,
-          viatorProductId: slot.viatorProductId,
-          productTitle: slot.productTitle,
-          productUrl: slot.productUrl,
-          productImageUrl: slot.productImageUrl,
-          destination: slot.destination,
-          price: slot.price,
-          currency: slot.currency,
-          rating: slot.rating,
-          reviewCount: slot.reviewCount,
-          durationLabel: slot.durationLabel,
-          source: slot.source,
-          active: slot.active,
-          isPublic: false,
-          createdAt: now,
-        }),
-        db.tx.affiliate_links[linkId].update({
-          linkId,
-          userId,
-          postId: newPostId,
-          slotId,
-          slotLabel: slot.label,
-          viatorProductId: slot.viatorProductId,
-          shortCode,
-          affiliateUrl: generateReferralUrl(slot.productUrl, creatorCode, "post_slot_copy"),
-          destinationUrl: slot.productUrl,
-          productTitle: slot.productTitle,
-          productImageUrl: slot.productImageUrl,
-          productPrice: slot.price,
-          productCurrency: slot.currency,
-          productRating: slot.rating,
-          reviewCount: slot.reviewCount,
-          campaignSource: "post_slot_copy",
-          creatorCode,
-          active: true,
-          createdAt: now,
-        }),
-      );
-    });
-
     await db.transact(chunks);
   }
 
@@ -142,7 +88,7 @@ export function PostsDashboard() {
         <div>
           <h1 className="text-2xl font-bold">Posts</h1>
           <p className="text-sm text-muted">
-            {activeCampaign ? `Filtered to ${activeCampaign.title}.` : "Grouped short links for creator content alternatives."}
+            {activeCampaign ? `Filtered to ${activeCampaign.title}.` : "Created posts, campaign posts, and saved-deal collections."}
           </p>
         </div>
         <Link href="/posts/new" className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white">
@@ -168,6 +114,24 @@ export function PostsDashboard() {
         </div>
       )}
 
+      <div className="grid gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-[1fr_260px]">
+        <label className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search posts"
+            className="w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/25"
+          />
+        </label>
+        <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className="rounded-xl border border-border bg-surface px-3 py-2 text-sm">
+          <option value="">All campaigns</option>
+          {campaigns.map((campaign) => (
+            <option key={campaign.id} value={campaign.id}>{campaign.title}</option>
+          ))}
+        </select>
+      </div>
+
       {!profile?.username && (
         <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-64">
@@ -178,16 +142,16 @@ export function PostsDashboard() {
         </div>
       )}
 
-      <div className="grid sm:grid-cols-3 gap-3">
-        <Stat icon={FileText} label="Posts" value={posts.length} />
-        <Stat icon={MousePointerClick} label="Human clicks" value={totalClicks} highlight />
-        <Stat icon={Link2} label="Est. commission" value={`$${totalCommission.toFixed(2)}`} />
-      </div>
-
       <div className="grid gap-4">
-        {rows.map(({ post, stats }) => (
-          <article key={post.id} className="rounded-2xl border border-border bg-surface p-4 space-y-4">
-            <div className="flex flex-wrap items-start gap-3">
+        {rows.map(({ post, stats }) => {
+          const firstLink = stats.links[0];
+          const shortUrl = firstLink ? shortUrlFor(firstLink.shortCode) : "";
+          return (
+          <article key={post.id} className="rounded-2xl border border-border bg-surface p-4">
+            <div className="flex flex-wrap items-start gap-4">
+              {post.coverImageUrl && (
+                <img src={post.coverImageUrl} alt="" className="h-20 w-20 rounded-xl object-cover" />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="font-semibold text-lg">{post.title}</h2>
@@ -204,69 +168,51 @@ export function PostsDashboard() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {profile?.username && post.isPublic && (
-                  <a href={`/@${profile.username}/${post.slug}`} target="_blank" className="p-2 rounded-xl hover:bg-surface-alt" title="Open public post">
+                  <a href={`/@${profile.username}/${post.slug}`} target="_blank" className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-surface-alt" title="Open public post">
                     <ExternalLink className="w-4 h-4" />
+                    View
                   </a>
                 )}
-                <Link href={`/posts/${post.id}`} className="p-2 rounded-xl hover:bg-surface-alt" title="Post detail">
+                <Link href={`/posts/${post.id}`} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-surface-alt" title="Post detail">
                   <FileText className="w-4 h-4" />
+                  Detail
                 </Link>
-                <button onClick={() => copyPost(post)} className="p-2 rounded-xl hover:bg-surface-alt" title="Copy post">
+                <button onClick={() => shortUrl && copyText(shortUrl, post.id)} disabled={!shortUrl} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-surface-alt disabled:opacity-50" title="Copy short URL">
                   <Copy className="w-4 h-4" />
+                  {copied === post.id ? "Copied" : "Copy URL"}
+                </button>
+                <button onClick={() => deletePost(post)} className="inline-flex items-center gap-1.5 rounded-xl border border-danger/20 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/5" title="Delete post">
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </button>
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-3 text-sm">
-              <Metric label="Total clicks" value={stats.clicks} />
+            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <Metric label="Short URL" value={shortUrl || "None"} mono />
+              <Metric label="Clicks" value={stats.clicks} />
               <Metric label="Est. commission" value={`$${stats.commission.toFixed(2)}`} />
-              <Metric label="Top slot" value={stats.topSlot?.label ?? "None"} />
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-2">
-              {stats.slots.map(({ slot, clicks: slotClicks, commission }) => {
-                const link = stats.links.find((item) => item.slotId === slot.id);
-                return (
-                  <div key={slot.id} className="rounded-xl bg-surface-alt p-3 text-sm">
-                    <div className="font-semibold">{slot.label}</div>
-                    <div className="text-muted line-clamp-1">{slot.productTitle}</div>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted">
-                      <span>{slotClicks} clicks</span>
-                      <span>${commission.toFixed(2)} est.</span>
-                      {link && <span className="font-mono">{shortUrlFor(link.shortCode)}</span>}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </article>
-        ))}
+        );
+        })}
+        {rows.length === 0 && (
+          <div className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
+            No posts yet. <Link href="/posts/new" className="font-semibold text-accent hover:underline">Create one →</Link>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Stat({ icon: Icon, label, value, highlight }: { icon: typeof FileText; label: string; value: string | number; highlight?: boolean }) {
-  return (
-    <div className={cn("rounded-2xl border p-4 flex items-center gap-3", highlight ? "border-accent/20 bg-accent/5" : "border-border bg-surface")}>
-      <div className={cn("w-10 h-10 rounded-xl grid place-items-center", highlight ? "bg-accent/10 text-accent" : "bg-surface-alt text-muted")}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div>
-        <div className={cn("text-lg font-bold", highlight && "text-accent")}>{value}</div>
-        <div className="text-[11px] text-muted">{label}</div>
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string | number }) {
+function Metric({ label, value, mono }: { label: string; value: string | number; mono?: boolean }) {
   return (
     <div className="rounded-xl border border-border p-3">
       <div className="text-xs text-muted">{label}</div>
-      <div className="font-semibold">{value}</div>
+      <div className={cn("font-semibold truncate", mono && "font-mono text-xs")}>{value}</div>
     </div>
   );
 }

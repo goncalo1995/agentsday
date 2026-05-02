@@ -58,6 +58,14 @@ const rules = {
       delete: isOwner,
     },
   },
+  external_commitments: {
+    allow: {
+      view: isOwner,
+      create: createsOwnRow,
+      update: isOwner,
+      delete: isOwner,
+    },
+  },
   click_logs: {
     allow: {
       view: isOwner,

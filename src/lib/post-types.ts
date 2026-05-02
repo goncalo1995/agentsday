@@ -46,6 +46,20 @@ export type CampaignContent = {
   generatedAt: string;
 };
 
+export type ExternalCommitment = {
+  id: string;
+  userId: string;
+  campaignId?: string;
+  title: string;
+  partnerName: string;
+  dueDate: string;
+  status: "planned" | "in_progress" | "delivered" | "paid";
+  fee?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PostSlot = {
   id: string;
   userId: string;

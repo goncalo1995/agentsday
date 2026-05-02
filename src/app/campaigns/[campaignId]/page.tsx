@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthGate } from "@/components/auth-gate";
 import { CampaignDetailPage } from "@/components/campaign-detail-page";
 
@@ -9,7 +10,9 @@ export default async function CampaignDetailRoute({
   const { campaignId } = await params;
   return (
     <AuthGate>
-      <CampaignDetailPage campaignId={campaignId} />
+      <Suspense fallback={null}>
+        <CampaignDetailPage campaignId={campaignId} />
+      </Suspense>
     </AuthGate>
   );
 }
