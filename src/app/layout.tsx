@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "CreatorLinks — Discover & Share Travel Experiences",
@@ -27,7 +16,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <head>
         <meta name="talentapp:project_verification" content="666c8033e6501691f9a4568b19d1da069f6dfe846aaa4691e8f3f4169b0957d04ea0c464a7520c8f62cef6694a1cfec0036cc90d2fa42cc7c918b5bf826237ed"></meta>

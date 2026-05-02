@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { Search, Sparkles, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useCallback, useRef, useMemo } from "react";
+import { Search, Sparkles, AlertTriangle, ChevronLeft, ChevronRight, Grid3X3, List, Star, Clock, Link2, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { id } from "@instantdb/react";
 import type { SearchIntent, SearchStep, ViatorProduct, ViatorAttraction, ViatorSearchResponse } from "@/lib/types";
-import { DEMO_PRODUCTS, DEMO_ATTRACTIONS } from "@/lib/demo-data";
 import { db } from "@/lib/instant";
 import { affiliateUrlFor, makeShortCode, productSnapshot } from "@/lib/affiliate";
+import { bestImageUrl, cn, dealScore, formatDuration } from "@/lib/utils";
 import { ProductCard } from "./product-card";
 import { ReferralModal } from "./referral-modal";
 import { SearchIntentPanel } from "./search-intent-panel";
@@ -22,37 +22,6 @@ const EXAMPLE_PROMPTS = [
   "Wine tasting in Paris for couples content",
 ];
 
-/** Group products by their first known tag for carousel sections */
-function groupByCategory(products: ViatorProduct[], tagNames: Record<string, string>): { label: string; items: ViatorProduct[] }[] {
-  if (products.length <= 6) return [{ label: "Experiences", items: products }];
-
-  const tagGroups = new Map<string, ViatorProduct[]>();
-  const ungrouped: ViatorProduct[] = [];
-
-  for (const p of products) {
-    const firstTag = p.tags?.[0];
-    if (firstTag) {
-      const name = tagNames[String(firstTag)] ?? null;
-      if (name) {
-        if (!tagGroups.has(name)) tagGroups.set(name, []);
-        tagGroups.get(name)!.push(p);
-      } else {
-        ungrouped.push(p);
-      }
-    } else {
-      ungrouped.push(p);
-    }
-  }
-
-  const groups: { label: string; items: ViatorProduct[] }[] = [];
-  for (const [label, items] of tagGroups) {
-    if (items.length >= 2) groups.push({ label, items });
-    else ungrouped.push(...items);
-  }
-  if (ungrouped.length > 0) groups.push({ label: "More experiences", items: ungrouped });
-  return groups.length > 0 ? groups : [{ label: "Experiences", items: products }];
-}
-
 export function Dashboard() {
   const auth = db.useAuth();
   const [query, setQuery] = useState("");
@@ -63,8 +32,7 @@ export function Dashboard() {
   const [steps, setSteps] = useState<SearchStep[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<ViatorProduct | null>(null);
-  const [showDemo, setShowDemo] = useState(false);
-  const [tagNames, setTagNames] = useState<Record<string, string>>({});
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const userId = auth.user?.id;
   const savedDeals = db.useQuery(
@@ -90,15 +58,6 @@ export function Dashboard() {
       : null,
   );
 
-  // Fetch tag names once on mount
-  useEffect(() => {
-    fetch("/api/viator/tags")
-      .then((r) => r.json())
-      .then((data) => { if (data && typeof data === "object") setTagNames(data); })
-      .catch(() => {});
-  }, []);
-
-  const carouselGroups = useMemo(() => groupByCategory(products, tagNames), [products, tagNames]);
   const savedIds = useMemo(
     () => new Set((savedDeals.data?.saved_deals ?? []).map((deal) => deal.viatorProductId)),
     [savedDeals.data?.saved_deals],
@@ -107,6 +66,23 @@ export function Dashboard() {
     () => new Set((affiliateLinks.data?.affiliate_links ?? []).map((link) => link.viatorProductId)),
     [affiliateLinks.data?.affiliate_links],
   );
+  const scoredProducts = useMemo(() => {
+    const prices = products
+      .map((product) => product.pricing?.summary?.fromPrice)
+      .filter((price): price is number => typeof price === "number" && price > 0);
+    const avgPrice = prices.length ? prices.reduce((sum, price) => sum + price, 0) / prices.length : 0;
+    return products
+      .map((product) => ({
+        ...product,
+        dealScore: dealScore(
+          product.pricing?.summary?.fromPrice,
+          product.reviews?.combinedAverageRating,
+          avgPrice,
+        ),
+      }))
+      .sort((a, b) => (b.dealScore ?? 0) - (a.dealScore ?? 0));
+  }, [products]);
+  const bestDeals = useMemo(() => scoredProducts.slice(0, 5), [scoredProducts]);
 
   const handleSearch = useCallback(async (searchQuery?: string) => {
     const q = searchQuery ?? query;
@@ -117,7 +93,6 @@ export function Dashboard() {
     setProducts([]);
     setAttractions([]);
     setIntent(null);
-    setShowDemo(false);
 
     setSteps([
       { label: "Understanding your idea", status: "active" },
@@ -148,6 +123,8 @@ export function Dashboard() {
         body: JSON.stringify({
           searchTerm: agentData.searchTerm,
           destinationId: agentData.destinationId,
+          maxPrice: agentData.maxPrice,
+          groupType: agentData.groupType,
           currency: "USD",
         }),
       });
@@ -161,12 +138,15 @@ export function Dashboard() {
           { label: searchData.error ? "Provider unavailable" : "No results found", status: "error" },
         ]);
         setError(searchData.error
-          ? "The experience provider returned an error. Try demo results to explore the interface."
+          ? "The Viator provider returned an error. Please try again in a moment."
           : "No experiences found for this search. Try different keywords.");
       } else {
-        // Attach provider to each product
-        const enriched = searchData.products.map((p) => ({ ...p, provider: "viator" }));
-        console.log("enriched products", enriched);
+        const enriched = searchData.products
+          .filter((p) => {
+            const price = p.pricing?.summary?.fromPrice;
+            return !agentData.maxPrice || price == null || price <= agentData.maxPrice;
+          })
+          .map((p) => ({ ...p, provider: "viator" }));
         setProducts(enriched);
         setAttractions(searchData.attractions);
         setSteps([
@@ -178,23 +158,11 @@ export function Dashboard() {
       }
     } catch {
       setSteps((prev) => prev.map((s) => s.status === "active" ? { ...s, status: "error" as const } : s));
-      setError("Something went wrong. Try again or explore demo results.");
+      setError("Something went wrong. Try again in a moment.");
     }
 
     setLoading(false);
   }, [query]);
-
-  function loadDemoResults() {
-    setProducts(DEMO_PRODUCTS);
-    setAttractions(DEMO_ATTRACTIONS);
-    setShowDemo(true);
-    setError(null);
-    setSteps((prev) =>
-      prev.map((s, i) =>
-        i === prev.length - 1 ? { label: `${DEMO_PRODUCTS.length} demo experiences loaded`, status: "done" as const } : s
-      )
-    );
-  }
 
   async function generateAffiliateLink(product: ViatorProduct, creatorCode: string, campaignSource: string) {
     if (!userId) return;
@@ -220,6 +188,7 @@ export function Dashboard() {
         reviewCount: snapshot.reviewCount,
         campaignSource,
         creatorCode,
+        active: true,
         createdAt: new Date().toISOString(),
       }),
     );
@@ -322,24 +291,13 @@ export function Dashboard() {
           <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm">{error}</p>
-            <button onClick={loadDemoResults} className="mt-2 text-sm font-semibold text-accent hover:underline cursor-pointer">
-              Explore demo results →
-            </button>
           </div>
         </motion.div>
       )}
 
-      {/* Demo badge */}
-      {showDemo && (
-        <div className="text-center text-xs text-muted bg-surface-alt rounded-full py-2 mx-6">
-          Showing demo results — connect your API key for live data
-        </div>
-      )}
-
-      {/* Carousels */}
-      {carouselGroups.map((group) => (
-        <Carousel key={group.label} label={group.label}>
-          {group.items.map((p, i) => (
+      {bestDeals.length > 0 && (
+        <Carousel label="Best deals">
+          {bestDeals.map((p, i) => (
             <ProductCard
               key={p.productCode}
               product={p}
@@ -351,7 +309,69 @@ export function Dashboard() {
             />
           ))}
         </Carousel>
-      ))}
+      )}
+
+      {scoredProducts.length > 0 && (
+        <section className="space-y-4 px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">All Viator results</h2>
+              <p className="text-sm text-muted">
+                {scoredProducts.length} experiences
+                {intent?.maxPrice ? ` under $${intent.maxPrice}` : ""}
+                {intent?.groupType ? ` for ${intent.groupType}` : ""}
+              </p>
+            </div>
+            <div className="flex rounded-full border border-border bg-surface p-1">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={cn("p-2 rounded-full transition-colors cursor-pointer", viewMode === "grid" ? "bg-accent text-white" : "text-muted hover:bg-surface-alt")}
+                title="Grid view"
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={cn("p-2 rounded-full transition-colors cursor-pointer", viewMode === "list" ? "bg-accent text-white" : "text-muted hover:bg-surface-alt")}
+                title="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {viewMode === "grid" ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {scoredProducts.map((p, i) => (
+                <ProductCard
+                  key={p.productCode}
+                  product={p}
+                  index={i}
+                  onGenerateLink={setModalProduct}
+                  onSave={handleQuickSave}
+                  isSaved={savedIds.has(p.productCode)}
+                  hasLink={linkedIds.has(p.productCode)}
+                  layout="grid"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {scoredProducts.map((p, i) => (
+                <ProductListRow
+                  key={p.productCode}
+                  product={p}
+                  index={i}
+                  onGenerateLink={setModalProduct}
+                  onSave={handleQuickSave}
+                  isSaved={savedIds.has(p.productCode)}
+                  hasLink={linkedIds.has(p.productCode)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Destination inspiration */}
       {attractions.length > 0 && (
@@ -398,5 +418,95 @@ function Carousel({ label, children }: { label: string; children: React.ReactNod
         {children}
       </div>
     </div>
+  );
+}
+
+function ProductListRow({
+  product,
+  index,
+  onGenerateLink,
+  onSave,
+  isSaved,
+  hasLink,
+}: {
+  product: ViatorProduct;
+  index: number;
+  onGenerateLink: (p: ViatorProduct) => void;
+  onSave: (p: ViatorProduct) => void;
+  isSaved: boolean;
+  hasLink: boolean;
+}) {
+  const img = bestImageUrl(product.images);
+  const price = product.pricing?.summary?.fromPrice;
+  const currency = product.pricing?.currency ?? "USD";
+  const rating = product.reviews?.combinedAverageRating ?? 0;
+  const reviews = product.reviews?.totalReviews ?? 0;
+  const currencySymbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : `${currency} `;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.02 }}
+      className="grid md:grid-cols-[180px_1fr_auto] gap-4 rounded-2xl border border-border bg-surface p-3"
+    >
+      <div className="aspect-[4/3] rounded-xl overflow-hidden bg-surface-alt">
+        {img ? (
+          <img src={img} alt={product.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full grid place-items-center text-xs text-muted">No image</div>
+        )}
+      </div>
+
+      <div className="min-w-0 space-y-2 py-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-[#3B7A57]/10 text-[#3B7A57]">Viator</span>
+          {(product.dealScore ?? 0) > 0 && (
+            <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-accent/10 text-accent">
+              Deal score {Math.round((product.dealScore ?? 0) * 100)}
+            </span>
+          )}
+        </div>
+        <h3 className="font-semibold leading-snug">{product.title}</h3>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+          <span className="inline-flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            {formatDuration(product.duration)}
+          </span>
+          {rating > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              {rating.toFixed(1)} ({reviews})
+            </span>
+          )}
+          {price != null && (
+            <span className="font-semibold text-foreground">
+              From {currencySymbol}{price.toFixed(0)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex md:flex-col gap-2 md:items-stretch justify-end">
+        <button
+          onClick={() => onSave(product)}
+          disabled={isSaved}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors cursor-pointer",
+            isSaved ? "bg-success/10 text-success cursor-default" : "bg-surface-alt text-muted hover:bg-border/50",
+          )}
+        >
+          <Heart className={cn("w-4 h-4", isSaved && "fill-current")} />
+          {isSaved ? "Saved" : "Save"}
+        </button>
+        <button
+          onClick={() => onGenerateLink(product)}
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent/90 transition-colors cursor-pointer"
+        >
+          <Link2 className="w-4 h-4" />
+          {hasLink ? "View Link" : "Generate"}
+        </button>
+      </div>
+    </motion.div>
   );
 }

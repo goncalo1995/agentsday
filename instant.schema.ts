@@ -26,6 +26,7 @@ const _schema = i.schema({
       reviewCount: i.number().optional(),
       campaignSource: i.string().indexed().optional(),
       creatorCode: i.string().optional(),
+      active: i.boolean().indexed(),
       createdAt: i.string().indexed(),
     }),
     click_logs: i.entity({

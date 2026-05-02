@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MapPin, Tag, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { MapPin, Tag, CheckCircle2, Loader2, AlertCircle, DollarSign, Users } from "lucide-react";
 import type { SearchIntent, SearchStep } from "@/lib/types";
 
 interface Props {
@@ -56,6 +56,18 @@ export function SearchIntentPanel({ intent, steps }: Props) {
               {intent.destinationId && (
                 <span className="text-accent/50 font-mono">#{intent.destinationId}</span>
               )}
+            </span>
+          )}
+          {intent.maxPrice && (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-success/10 text-success px-2.5 py-1 rounded-full">
+              <DollarSign className="w-3 h-3" />
+              Under ${intent.maxPrice}
+            </span>
+          )}
+          {intent.groupType && (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-info/10 text-info px-2.5 py-1 rounded-full">
+              <Users className="w-3 h-3" />
+              {intent.groupType}
             </span>
           )}
           {intent.keywords.map((kw) => (

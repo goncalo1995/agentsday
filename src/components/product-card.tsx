@@ -18,9 +18,10 @@ interface Props {
   onSave: (p: ViatorProduct) => void;
   isSaved: boolean;
   hasLink?: boolean;
+  layout?: "carousel" | "grid";
 }
 
-export function ProductCard({ product, index, onGenerateLink, onSave, isSaved, hasLink }: Props) {
+export function ProductCard({ product, index, onGenerateLink, onSave, isSaved, hasLink, layout = "carousel" }: Props) {
   const img = bestImageUrl(product.images);
   const price = product.pricing?.summary?.fromPrice;
   const currency = product.pricing?.currency ?? "USD";
@@ -36,7 +37,10 @@ export function ProductCard({ product, index, onGenerateLink, onSave, isSaved, h
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.35, ease: "easeOut" }}
-      className="group flex-shrink-0 w-[300px] md:w-[320px] cursor-pointer"
+      className={cn(
+        "group cursor-pointer",
+        layout === "carousel" ? "flex-shrink-0 w-[300px] md:w-[320px]" : "w-full",
+      )}
     >
       {/* Image container — 3:2 aspect */}
       <div className="relative aspect-[3/2] rounded-2xl overflow-hidden bg-surface-alt">
@@ -63,6 +67,11 @@ export function ProductCard({ product, index, onGenerateLink, onSave, isSaved, h
         <span className={cn("absolute top-3 left-3 text-[10px] font-semibold px-2 py-1 rounded-full backdrop-blur-sm", providerCfg.color)}>
           {providerCfg.label}
         </span>
+        {(product.dealScore ?? 0) > 0 && (
+          <span className="absolute bottom-3 left-3 text-[10px] font-semibold px-2 py-1 rounded-full bg-accent text-white shadow-sm">
+            Score {Math.round((product.dealScore ?? 0) * 100)}
+          </span>
+        )}
       </div>
 
       {/* Content */}

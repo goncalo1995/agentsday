@@ -1,4 +1,4 @@
-import { generateObject, generateText, Output } from "ai";
+import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { resolveDestinationId } from "@/lib/destinations";
@@ -10,6 +10,8 @@ const openrouter = createOpenAI({
 
 const intentSchema = z.object({
   destination: z.string().describe("City or region name"),
+  maxPrice: z.number().optional().describe("Maximum per-person price, if stated"),
+  groupType: z.string().optional().describe("Audience or traveler group, such as couples, family, solo, friends"),
   keywords: z.array(z.string()).describe("Search keywords for Viator"),
   searchTerm: z.string().describe("Concise search query for Viator freetext search"),
   summary: z.string().describe("One-sentence summary of what the creator is looking for"),
@@ -34,9 +36,10 @@ export async function POST(req: Request) {
       output: Output.array({ element: intentSchema }),
       temperature: 0.1,
       maxRetries: 1,
-      prompt: `You are a travel search assistant for content creators.
-Extract the destination, search keywords, and a short search term from this creator's request.
-Be concise. Return only the structured data.
+      prompt: `System: You extract travel affiliate search intent for éFacil, a creator affiliate platform.
+Return destination, maxPrice, groupType, keywords, searchTerm, and summary.
+Use null/omit maxPrice when no price ceiling is stated. Keep searchTerm concise for Viator freetext search.
+Do not invent destinations or prices.
 
 Creator request: "${prompt}"`,
     });
@@ -53,6 +56,8 @@ Creator request: "${prompt}"`,
     return Response.json({
       destination: data.destination,
       destinationId,
+      maxPrice: data.maxPrice,
+      groupType: data.groupType,
       keywords: data.keywords,
       searchTerm: data.searchTerm,
       summary: data.summary,
@@ -68,6 +73,11 @@ function fallbackExtract(prompt: string) {
   const words = prompt.toLowerCase().split(/\s+/);
   const stopWords = new Set(["find", "cool", "for", "a", "an", "the", "in", "and", "my", "post", "me", "i", "need", "want", "show", "get", "best", "top", "some"]);
   const keywords = words.filter((w) => w.length > 2 && !stopWords.has(w));
+  const priceMatch = prompt.match(/(?:under|below|less than|<=?\s*)\s*\$?(\d+(?:\.\d+)?)/i);
+  const maxPrice = priceMatch ? Number(priceMatch[1]) : undefined;
+  const groupType = ["couples", "family", "families", "friends", "solo", "kids"].find((term) =>
+    prompt.toLowerCase().includes(term),
+  );
 
   let destination = "";
   let destinationId = "";
@@ -84,6 +94,8 @@ function fallbackExtract(prompt: string) {
   return {
     destination: destination || "Unknown",
     destinationId,
+    maxPrice,
+    groupType,
     keywords: keywords.slice(0, 5),
     searchTerm: keywords.join(" "),
     summary: `Searching for ${keywords.slice(0, 3).join(", ")}${destination ? ` in ${destination}` : ""}`,

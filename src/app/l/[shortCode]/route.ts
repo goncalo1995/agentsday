@@ -29,6 +29,10 @@ export async function GET(
     return NextResponse.json({ error: "Short link not found." }, { status: 404 });
   }
 
+  if (link.active === false) {
+    return NextResponse.json({ error: "This short link is inactive." }, { status: 410 });
+  }
+
   const forwardedFor = req.headers.get("x-forwarded-for");
   const ip = forwardedFor?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? "";
   const userAgent = req.headers.get("user-agent") ?? "";

@@ -2,6 +2,8 @@
 export interface SearchIntent {
   destination: string;
   destinationId: string;
+  maxPrice?: number;
+  groupType?: string;
   keywords: string[];
   searchTerm: string;
   summary: string;
@@ -25,6 +27,7 @@ export interface ViatorProduct {
   productUrl?: string;
   flags?: string[];
   provider?: string;
+  dealScore?: number;
 }
 
 // ── Viator v2 attraction ──
@@ -37,7 +40,7 @@ export interface ViatorAttraction {
   attractionUrl?: string;
 }
 
-// ── Saved referral link (persisted to localStorage) ──
+// ── Legacy saved referral link shape from the pre-build UI ──
 export interface SavedLink {
   id: string;
   productTitle: string;

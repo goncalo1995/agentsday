@@ -67,6 +67,21 @@ export function simulateCommission(price: number, clicks: number): number {
   return Math.round(price * conversionRate * clicks * 0.08 * 100) / 100;
 }
 
+export function isHumanUserAgent(userAgent?: string | null): boolean {
+  if (!userAgent) return true;
+  return !/(bot|crawler)/i.test(userAgent);
+}
+
+export function estimateCommission(price: number | undefined, clicks: number): number {
+  return Math.round(((price ?? 0) * clicks * 0.08) * 100) / 100;
+}
+
+export function dealScore(price: number | undefined, rating: number | undefined, avgPrice: number): number {
+  if (!price || !rating || avgPrice <= 0) return 0;
+  const priceValue = Math.max(0, 1 - price / avgPrice);
+  return Math.max(0, Math.min(1, (rating / 5) * priceValue));
+}
+
 /** Map Viator tag IDs to human-readable labels */
 const TAG_MAP: Record<number, string> = {
   20226: "Bus Tours",
